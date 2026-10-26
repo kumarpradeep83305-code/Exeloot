@@ -1,0 +1,82 @@
+
+name: DeepEx Android AAB Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Prepare HTML
+        run: |
+          mkdir -p www
+          cp index.html www/index.html
+          if [ -f "Admin_(1).html" ]; then
+            cp "Admin_(1).html" www/
+          fi
+
+      - name: Create Capacitor project
+        run: |
+          cat > package.json <<'EOF'
+          {
+            "name": "deepex-android",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": {
+              "@capacitor/core": "^7.0.0"
+            },
+            "devDependencies": {
+              "@capacitor/cli": "^7.0.0",
+              "@capacitor/android": "^7.0.0"
+            }
+          }
+          EOF
+
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.pradeep.deepex",
+            "appName": "DeepEx",
+            "webDir": "www"
+          }
+          EOF
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Sync Android project
+        run: npx cap sync android
+
+      - name: Build AAB
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepex-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
